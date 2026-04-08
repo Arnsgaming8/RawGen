@@ -86,8 +86,9 @@ class AIImageGenerator {
         // Create new abort controller for this generation
         this.abortController = new AbortController();
 
-        // Use only server-side methods to avoid CORS issues
+        // Use Puter.js first (best free unrestricted model), then fallback to server-side methods
         const methods = [
+            () => this.generateWithPuter(userPrompt, style, size),
             () => this.generateWithLocalProxy(userPrompt, style, size),
             () => this.generateWithHuggingFaceProxy(userPrompt, style, size)
         ];
@@ -480,6 +481,56 @@ class AIImageGenerator {
                 return data.imageUrl;
             }
             throw new Error('No image returned from proxy');
+        } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                // Check if it was user-cancelled or timeout
+                if (this.abortController?.signal.aborted) {
+                    throw error; // Re-throw to handle in generateImage
+                }
+                throw new Error('Request timed out. The generation is taking too long.');
+            }
+            throw error;
+        }
+    }
+
+    async generateWithPuter(prompt, style, size) {
+        const enhancedPrompt = this.enhancePrompt(prompt, style);
+        const [width, height] = size.split('x');
+        
+        // Use class abortController for both timeout and cancel
+        const timeoutId = setTimeout(() => this.abortController?.abort(), 90000); // 90 second timeout
+        
+        try {
+            // Check if Puter.js is available
+            if (typeof puter === 'undefined') {
+                throw new Error('Puter.js not loaded');
+            }
+
+            // Use FLUX.1-schnell-Free - best free unrestricted model
+            const imageElement = await puter.ai.txt2img(enhancedPrompt, {
+                model: 'black-forest-labs/FLUX.1-schnell-Free',
+                width: parseInt(width),
+                height: parseInt(height)
+            });
+
+            clearTimeout(timeoutId);
+
+            if (imageElement && imageElement.src) {
+                // Convert to base64 for consistency
+                const response = await fetch(imageElement.src);
+                const blob = await response.blob();
+                const reader = new FileReader();
+                
+                return new Promise((resolve, reject) => {
+                    reader.onloadend = () => {
+                        resolve(reader.result);
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+            }
+            throw new Error('No image returned from Puter.js');
         } catch (error) {
             clearTimeout(timeoutId);
             if (error.name === 'AbortError') {
