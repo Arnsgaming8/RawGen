@@ -124,7 +124,7 @@ class AIImageGenerator {
     enhancePrompt(prompt, style) {
         // Style-specific prompt boosters for all image styles
         const styleBoosters = {
-            realistic: 'photorealistic, professional photography, cinematic lighting, 8k resolution',
+            realistic: 'photorealistic,  8k resolution',
             artistic: 'artistic, creative, vibrant colors, beautiful composition, trending on artstation',
             anime: 'anime style, 2d, cel shaded, vibrant colors, crisp lines',
             cartoon: 'cartoon style, 3d render, vibrant colors, clean lines',
