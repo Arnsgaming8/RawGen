@@ -134,6 +134,37 @@ class AIImageGenerator {
         return prompt;
     }
 
+    extractNegativePrompt(prompt) {
+        // Detect negative phrases and extract them
+        const negativePatterns = [
+            /\bno\s+(?:bra|underwear|panties|clothes|shirt|pants|dress|shoes|socks|hat|gloves|jewelry|makeup|accessories)/gi,
+            /\bwithout\s+(?:bra|underwear|panties|clothes|shirt|pants|dress|shoes|socks|hat|gloves|jewelry|makeup|accessories)/gi,
+            /\b(?:avoid|avoiding|not)\s+(?:bra|underwear|panties|clothes|shirt|pants|dress|shoes|socks|hat|gloves|jewelry|makeup|accessories)/gi,
+            /\b(?:bare|naked|nude|topless|bottomless)\b/gi,
+            /\b(?:no|without|avoid|not)\s+\w+/gi
+        ];
+
+        const negativePhrases = [];
+        let cleanedPrompt = prompt;
+
+        for (const pattern of negativePatterns) {
+            const matches = prompt.match(pattern);
+            if (matches) {
+                negativePhrases.push(...matches);
+                // Remove the negative phrase from the main prompt
+                cleanedPrompt = cleanedPrompt.replace(pattern, '').trim();
+            }
+        }
+
+        // Clean up extra spaces and commas
+        cleanedPrompt = cleanedPrompt.replace(/\s+,/g, ',').replace(/,\s*,/g, ',').replace(/^,|,$/g, '').trim();
+
+        return {
+            prompt: cleanedPrompt,
+            negative: negativePhrases.join(', ')
+        };
+    }
+
     preloadImage(url) {
         return new Promise((resolve, reject) => {
             const img = new Image();
@@ -429,6 +460,7 @@ class AIImageGenerator {
 
     async generateWithLocalProxy(prompt, style, size) {
         const enhancedPrompt = this.enhancePrompt(prompt, style);
+        const { prompt: cleanedPrompt, negative } = this.extractNegativePrompt(enhancedPrompt);
         const [width, height] = size.split('x');
         
         // Use class abortController for both timeout and cancel
@@ -442,7 +474,8 @@ class AIImageGenerator {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    prompt: enhancedPrompt,
+                    prompt: cleanedPrompt,
+                    negative: negative,
                     width: parseInt(width),
                     height: parseInt(height)
                 }),
@@ -476,6 +509,7 @@ class AIImageGenerator {
 
     async generateWithHuggingFaceProxy(prompt, style, size) {
         const enhancedPrompt = this.enhancePrompt(prompt, style);
+        const { prompt: cleanedPrompt, negative } = this.extractNegativePrompt(enhancedPrompt);
         const [width, height] = size.split('x');
         
         // Use class abortController for both timeout and cancel
@@ -489,7 +523,8 @@ class AIImageGenerator {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    prompt: enhancedPrompt,
+                    prompt: cleanedPrompt,
+                    negative: negative,
                     width: parseInt(width),
                     height: parseInt(height)
                 }),

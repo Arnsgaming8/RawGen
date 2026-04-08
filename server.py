@@ -87,6 +87,7 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
     
     def handle_pollinations(self, data):
         prompt = data.get('prompt', '')
+        negative = data.get('negative', '')
         width = data.get('width', 512)
         height = data.get('height', 512)
         
@@ -94,9 +95,16 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
         encoded_prompt = urllib.parse.quote(prompt)
         import random
         seed = random.randint(1, 1000000)
+        
+        # Add negative prompt if provided
         image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={seed}&nologo=true"
+        if negative:
+            encoded_negative = urllib.parse.quote(negative)
+            image_url += f"&negative={encoded_negative}"
         
         print(f"Generating image for: {prompt[:50]}...")
+        if negative:
+            print(f"Negative prompt: {negative[:50]}...")
         
         # Try up to 3 times with increasing timeouts
         for attempt in range(3):
