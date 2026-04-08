@@ -86,10 +86,10 @@ class AIImageGenerator {
         // Create new abort controller for this generation
         this.abortController = new AbortController();
 
-        // Use Puter.js first (SDK method), then direct REST API, then fallback to server-side methods
+        // Try direct REST API first (no WebSocket dependency), then SDK, then fallbacks
         const methods = [
-            () => this.generateWithPuter(userPrompt, style, size),
             () => this.generateWithPuterDirect(userPrompt, style, size),
+            () => this.generateWithPuter(userPrompt, style, size),
             () => this.generateWithLocalProxy(userPrompt, style, size),
             () => this.generateWithHuggingFaceProxy(userPrompt, style, size)
         ];
@@ -545,6 +545,10 @@ class AIImageGenerator {
             throw new Error('No image returned from Puter.js');
         } catch (error) {
             clearTimeout(timeoutId);
+            // Suppress WebSocket/connection errors from console - we handle via fallback
+            if (error?.message?.includes('websocket') || error?.message?.includes('socket.io') || error?.message?.includes('wss://')) {
+                console.log('Puter WebSocket unavailable, will try fallback');
+            }
             if (error.name === 'AbortError') {
                 // Check if it was user-cancelled or timeout
                 if (this.abortController?.signal.aborted) {
