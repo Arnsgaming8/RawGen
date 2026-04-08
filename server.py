@@ -17,6 +17,10 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.serve_file('style.css')
         elif self.path == '/script.js':
             self.serve_file('script.js')
+        elif self.path == '/robots.txt':
+            self.serve_file('robots.txt', 'text/plain')
+        elif self.path == '/sitemap.xml':
+            self.serve_file('sitemap.xml', 'application/xml')
         else:
             self.send_error(404)
     
