@@ -122,47 +122,24 @@ class AIImageGenerator {
     }
 
     enhancePrompt(prompt, style) {
-        // Add minimal anatomy fixers to prevent distortion
-        // Only applies to prompts that likely contain people/creatures
-        const lowerPrompt = prompt.toLowerCase();
-        const needsAnatomyFix = /person|people|man|woman|girl|boy|face|body|hand|human|creature|character|anime/g.test(lowerPrompt);
-        
-        if (needsAnatomyFix) {
-            return `${prompt}, correct anatomy, proper proportions`;
-        }
-        
-        return prompt;
-    }
-
-    extractNegativePrompt(prompt) {
-        // Detect negative phrases and extract them
-        const negativePatterns = [
-            /\bno\s+(?:bra|underwear|panties|clothes|shirt|pants|dress|shoes|socks|hat|gloves|jewelry|makeup|accessories)/gi,
-            /\bwithout\s+(?:bra|underwear|panties|clothes|shirt|pants|dress|shoes|socks|hat|gloves|jewelry|makeup|accessories)/gi,
-            /\b(?:avoid|avoiding|not)\s+(?:bra|underwear|panties|clothes|shirt|pants|dress|shoes|socks|hat|gloves|jewelry|makeup|accessories)/gi,
-            /\b(?:bare|naked|nude|topless|bottomless)\b/gi,
-            /\b(?:no|without|avoid|not)\s+\w+/gi
-        ];
-
-        const negativePhrases = [];
-        let cleanedPrompt = prompt;
-
-        for (const pattern of negativePatterns) {
-            const matches = prompt.match(pattern);
-            if (matches) {
-                negativePhrases.push(...matches);
-                // Remove the negative phrase from the main prompt
-                cleanedPrompt = cleanedPrompt.replace(pattern, '').trim();
-            }
-        }
-
-        // Clean up extra spaces and commas
-        cleanedPrompt = cleanedPrompt.replace(/\s+,/g, ',').replace(/,\s*,/g, ',').replace(/^,|,$/g, '').trim();
-
-        return {
-            prompt: cleanedPrompt,
-            negative: negativePhrases.join(', ')
+        // Style-specific prompt boosters for all image styles
+        const styleBoosters = {
+            realistic: 'photorealistic, professional photography, cinematic lighting, 8k resolution',
+            artistic: 'artistic, creative, vibrant colors, beautiful composition, trending on artstation',
+            anime: 'anime style, 2d, cel shaded, vibrant colors, crisp lines',
+            cartoon: 'cartoon style, 3d render, vibrant colors, clean lines',
+            fantasy: 'fantasy art, magical, ethereal, mystical atmosphere, dramatic lighting',
+            cyberpunk: 'cyberpunk, neon lights, futuristic, sci-fi, high tech',
+            vintage: 'vintage style, retro, nostalgic, film grain, classic photography'
         };
+
+        // Add style booster if style is selected
+        if (style && styleBoosters[style]) {
+            return `${prompt}, ${styleBoosters[style]}, best quality, highly detailed`;
+        }
+
+        // Default quality boosters
+        return `${prompt}, best quality, highly detailed, 8k resolution, sharp focus`;
     }
 
     preloadImage(url) {
@@ -460,7 +437,6 @@ class AIImageGenerator {
 
     async generateWithLocalProxy(prompt, style, size) {
         const enhancedPrompt = this.enhancePrompt(prompt, style);
-        const { prompt: cleanedPrompt, negative } = this.extractNegativePrompt(enhancedPrompt);
         const [width, height] = size.split('x');
         
         // Use class abortController for both timeout and cancel
@@ -474,8 +450,7 @@ class AIImageGenerator {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    prompt: cleanedPrompt,
-                    negative: negative,
+                    prompt: enhancedPrompt,
                     width: parseInt(width),
                     height: parseInt(height)
                 }),
@@ -509,7 +484,6 @@ class AIImageGenerator {
 
     async generateWithHuggingFaceProxy(prompt, style, size) {
         const enhancedPrompt = this.enhancePrompt(prompt, style);
-        const { prompt: cleanedPrompt, negative } = this.extractNegativePrompt(enhancedPrompt);
         const [width, height] = size.split('x');
         
         // Use class abortController for both timeout and cancel
@@ -523,8 +497,7 @@ class AIImageGenerator {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    prompt: cleanedPrompt,
-                    negative: negative,
+                    prompt: enhancedPrompt,
                     width: parseInt(width),
                     height: parseInt(height)
                 }),
