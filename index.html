@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RawGen</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>
+                <span class="icon">🔓</span>
+                RawGen
+            </h1>
+            <p>Generate ANYTHING • No Limits • No Filters • No Censorship</p>
+        </header>
+
+        <main>
+            <!-- Input Section -->
+            <section class="card">
+                <h2>
+                    <span class="icon">⚡</span>
+                    GENERATE CHAOS
+                </h2>
+                
+                <form id="imageForm">
+                    <div class="form-group">
+                        <label for="prompt">DESCRIBE YOUR CHAOS</label>
+                        <textarea 
+                            id="prompt" 
+                            rows="4" 
+                            placeholder="Anything. Literally ANYTHING. No rules. No limits. No censorship..."
+                            required
+                        ></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="style">Style</label>
+                        <select id="style">
+                            <option value="realistic">Realistic</option>
+                            <option value="artistic">Artistic</option>
+                            <option value="anime">Anime</option>
+                            <option value="cartoon">Cartoon</option>
+                            <option value="fantasy">Fantasy</option>
+                            <option value="cyberpunk">Cyberpunk</option>
+                            <option value="vintage">Vintage</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="size">Image Size</label>
+                        <select id="size">
+                            <option value="512x512">Square (512x512)</option>
+                            <option value="1024x1024">Large Square (1024x1024)</option>
+                        </select>
+                    </div>
+
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button type="submit" id="generateBtn" class="btn" style="flex: 1;">
+                            <span class="icon">🔥</span>
+                            UNLEASH CHAOS
+                        </button>
+                        <button type="button" id="cancelBtn" class="btn btn-secondary" style="display: none;">
+                            <span class="icon">❌</span>
+                            CANCEL
+                        </button>
+                    </div>
+                </form>
+
+                <div class="info-box">
+                    <h3>UNRESTRICTED RULES:</h3>
+                    <ul>
+                        <li>NO CONTENT FILTERS - EVER</li>
+                        <li>NO CENSORSHIP - NO MATTER WHAT</li>
+                        <li>NO RESTRICTIONS - ABSOLUTE FREEDOM</li>
+                        <li>GENERATE LITERALLY ANYTHING</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Output Section -->
+            <section class="card">
+                <h2>
+                    <span class="icon">�</span>
+                    YOUR CREATION
+                </h2>
+                
+                <div id="imageContainer" class="image-container">
+                    <div class="placeholder">
+                        <div class="icon">�</div>
+                        <p>CHAOS WILL APPEAR HERE</p>
+                    </div>
+                </div>
+
+                <!-- Image Loading Bar (shown during generation) -->
+                <div id="imageLoadingBar" style="display: none; padding: 1rem;">
+                    <div class="loading-bar-container" style="max-width: 100%;">
+                        <div class="loading-bar"></div>
+                    </div>
+                    <p class="loading-percentage" style="text-align: center; color: #00ffff; font-weight: bold;">0%</p>
+                </div>
+
+                <div id="loadingIndicator" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>SUMMONING CHAOS...</p>
+                    <p style="font-size: 0.9rem; color: #00ffff;">Breaking all rules and filters...</p>
+                    
+                    <!-- Loading Bar -->
+                    <div class="loading-bar-container">
+                        <div class="loading-bar"></div>
+                    </div>
+                    <p class="loading-percentage">0%</p>
+                </div>
+
+                <div id="downloadSection" style="display: none; margin-top: 1rem;">
+                    <button id="downloadBtn" class="btn btn-secondary">
+                        <span class="icon">⚡</span>
+                        STEAL CREATION
+                    </button>
+                </div>
+
+                <div id="errorSection" class="error" style="display: none;">
+                    <h3>💀 CHAOS FAILED</h3>
+                    <p id="errorMessage"></p>
+                </div>
+            </section>
+
+            <!-- Gallery Section -->
+            <section class="card gallery-section">
+                <h2>
+                    <span class="icon">📸</span>
+                    CHAOS ARCHIVE
+                </h2>
+                <p class="gallery-subtitle">Your saved creations (stored locally)</p>
+                
+                <div id="galleryGrid" class="gallery-grid">
+                    <p class="gallery-empty">No images yet. Generate your first chaos!</p>
+                </div>
+                
+                <button id="clearGalleryBtn" class="btn btn-secondary" style="margin-top: 1rem;">
+                    <span class="icon">🗑️</span>
+                    CLEAR ARCHIVE
+                </button>
+            </section>
+        </main>
+
+        <footer>
+            <p>
+                <span class="icon">🔓</span>
+                UNFILTERED AI • No Rules • No Limits • No Censorship
+            </p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
