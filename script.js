@@ -124,7 +124,7 @@ class AIImageGenerator {
     enhancePrompt(prompt, style) {
         // Style-specific prompt boosters for all image styles
         const styleBoosters = {
-            realistic: 'photorealistic,  8k resolution',
+            realistic: 'photorealistic, 8k resolution',
             artistic: 'artistic, creative, vibrant colors, beautiful composition, trending on artstation',
             anime: 'anime style, 2d, cel shaded, vibrant colors, crisp lines',
             cartoon: 'cartoon style, 3d render, vibrant colors, clean lines',
@@ -133,13 +133,24 @@ class AIImageGenerator {
             vintage: 'vintage style, retro, nostalgic, film grain, classic photography'
         };
 
+        let enhanced = prompt;
+
         // Add style booster if style is selected
         if (style && styleBoosters[style]) {
-            return `${prompt}, ${styleBoosters[style]}, best quality, highly detailed`;
+            enhanced = `${enhanced}, ${styleBoosters[style]}`;
         }
 
-        // Default quality boosters
-        return `${prompt}, best quality, highly detailed, 8k resolution, sharp focus`;
+        // Add anatomy fixers for people/creatures to prevent distortion
+        const lowerPrompt = prompt.toLowerCase();
+        const needsAnatomyFix = /person|people|man|woman|girl|boy|face|body|hand|human|creature|character|anime/g.test(lowerPrompt);
+        if (needsAnatomyFix) {
+            enhanced = `${enhanced}, correct anatomy, proper proportions`;
+        }
+
+        // Add quality boosters
+        enhanced = `${enhanced}, best quality, highly detailed`;
+
+        return enhanced;
     }
 
     preloadImage(url) {
