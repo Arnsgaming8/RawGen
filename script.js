@@ -86,8 +86,9 @@ class AIImageGenerator {
         // Create new abort controller for this generation
         this.abortController = new AbortController();
 
-        // Use local proxy methods only (no API keys required)
+        // Use local AI first, then fallback to proxy methods
         const methods = [
+            () => this.generateWithLocalAI(userPrompt, style, size),
             () => this.generateWithLocalProxy(userPrompt, style, size),
             () => this.generateWithHuggingFaceProxy(userPrompt, style, size)
         ];
@@ -445,6 +446,49 @@ class AIImageGenerator {
 
     hideError() {
         this.errorSection.classList.add('hidden');
+    }
+
+    async generateWithLocalAI(prompt, style, size) {
+        const enhancedPrompt = this.enhancePrompt(prompt, style);
+        const [width, height] = size.split('x');
+        
+        const timeoutId = setTimeout(() => this.abortController?.abort(), 120000); // 2 minute timeout for local AI
+        
+        try {
+            const response = await fetch('/api/local', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    prompt: enhancedPrompt,
+                    width: parseInt(width),
+                    height: parseInt(height)
+                }),
+                signal: this.abortController?.signal
+            });
+            
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                throw new Error('Local AI server error');
+            }
+
+            const data = await response.json();
+            if (data.success && data.imageUrl) {
+                return data.imageUrl;
+            }
+            throw new Error(data.error || 'No image returned from local AI');
+        } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                if (this.abortController?.signal.aborted) {
+                    throw error;
+                }
+                throw new Error('Local AI request timed out');
+            }
+            throw error;
+        }
     }
 
     async generateWithLocalProxy(prompt, style, size) {

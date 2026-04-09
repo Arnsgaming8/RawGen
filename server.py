@@ -8,6 +8,10 @@ from urllib.error import URLError, HTTPError
 import ssl
 import time
 import base64
+import os
+
+# Configuration for local AI server
+LOCAL_AI_SERVER = os.environ.get('LOCAL_AI_SERVER', 'http://127.0.0.1:7860')
 
 class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
@@ -67,6 +71,8 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
                 result = self.handle_huggingface(data)
             elif api_type == 'image':
                 result = self.handle_image_proxy(data)
+            elif api_type == 'local':
+                result = self.handle_local_ai(data)
             else:
                 result = {'error': 'Unknown API type'}
             
@@ -175,6 +181,69 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
     def handle_huggingface(self, data):
         # Just use Pollinations - it works and is unrestricted
         return self.handle_pollinations(data)
+    
+    def handle_local_ai(self, data):
+        prompt = data.get('prompt', '')
+        negative = data.get('negative', '')
+        width = data.get('width', 512)
+        height = data.get('height', 512)
+        
+        try:
+            # Connect to local Stable Diffusion WebUI (Automatic1111)
+            # Default URL: http://127.0.0.1:7860/sdapi/v1/txt2img
+            url = f"{LOCAL_AI_SERVER}/sdapi/v1/txt2img"
+            
+            payload = {
+                "prompt": prompt,
+                "negative_prompt": negative if negative else "",
+                "width": width,
+                "height": height,
+                "steps": 20,
+                "cfg_scale": 7,
+                "sampler_name": "Euler a"
+            }
+            
+            headers = {
+                'Content-Type': 'application/json'
+            }
+            
+            print(f"Sending to local AI server: {url}")
+            print(f"Prompt: {prompt[:50]}...")
+            
+            req = urllib.request.Request(
+                url,
+                json.dumps(payload).encode('utf-8'),
+                headers
+            )
+            
+            context = ssl._create_unverified_context()
+            
+            with urllib.request.urlopen(req, context=context, timeout=120) as response:
+                if response.status == 200:
+                    result = json.loads(response.read().decode('utf-8'))
+                    
+                    if 'images' in result and len(result['images']) > 0:
+                        image_b64 = result['images'][0]
+                        print(f"Success! Generated image from local AI")
+                        
+                        return {
+                            'success': True,
+                            'imageUrl': f'data:image/png;base64,{image_b64}'
+                        }
+                    else:
+                        return {'success': False, 'error': 'No image returned from local AI'}
+                else:
+                    return {'success': False, 'error': f'HTTP {response.status}'}
+                    
+        except urllib.error.URLError as e:
+            print(f"Connection error to local AI server: {e}")
+            return {
+                'success': False,
+                'error': f'Cannot connect to local AI server at {LOCAL_AI_SERVER}. Make sure Stable Diffusion WebUI is running.'
+            }
+        except Exception as e:
+            print(f"Error with local AI: {e}")
+            return {'success': False, 'error': str(e)}
     
     def try_pollinations_working_simple(self, prompt, width, height):
         # ABSOLUTELY GUARANTEED working method
