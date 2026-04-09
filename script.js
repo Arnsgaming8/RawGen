@@ -86,10 +86,8 @@ class AIImageGenerator {
         // Create new abort controller for this generation
         this.abortController = new AbortController();
 
-        // Try direct REST API first (no WebSocket dependency), then SDK, then fallbacks
+        // Use local proxy methods only (no API keys required)
         const methods = [
-            () => this.generateWithPuterDirect(userPrompt, style, size),
-            () => this.generateWithPuter(userPrompt, style, size),
             () => this.generateWithLocalProxy(userPrompt, style, size),
             () => this.generateWithHuggingFaceProxy(userPrompt, style, size)
         ];
@@ -491,138 +489,6 @@ class AIImageGenerator {
                     throw error; // Re-throw to handle in generateImage
                 }
                 throw new Error('Request timed out. The generation is taking too long.');
-            }
-            throw error;
-        }
-    }
-
-    async generateWithPuter(prompt, style, size) {
-        const enhancedPrompt = this.enhancePrompt(prompt, style);
-        const [width, height] = size.split('x');
-
-        // Use class abortController for both timeout and cancel
-        const timeoutId = setTimeout(() => this.abortController?.abort(), 90000); // 90 second timeout
-
-        try {
-            // Check if Puter.js is available and initialized
-            if (typeof puter === 'undefined' || !puter) {
-                throw new Error('Puter.js not loaded');
-            }
-
-            // Check if Puter.ai is available
-            if (!puter.ai || typeof puter.ai.txt2img !== 'function') {
-                throw new Error('Puter.ai not available');
-            }
-
-            // Try Together AI provider first (has disable_safety_checker option)
-            // Uses FLUX.1-schnell which is fast and unrestricted
-            const imageElement = await puter.ai.txt2img(enhancedPrompt, {
-                provider: 'together',
-                model: 'black-forest-labs/FLUX.1-schnell',
-                width: parseInt(width),
-                height: parseInt(height),
-                disable_safety_checker: true,
-                steps: 4, // Fast generation
-                n: 1
-            });
-
-            clearTimeout(timeoutId);
-
-            if (imageElement && imageElement.src) {
-                // Convert to base64 for consistency
-                const response = await fetch(imageElement.src);
-                const blob = await response.blob();
-                const reader = new FileReader();
-
-                return new Promise((resolve, reject) => {
-                    reader.onloadend = () => {
-                        resolve(reader.result);
-                    };
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                });
-            }
-            throw new Error('No image returned from Puter.js');
-        } catch (error) {
-            clearTimeout(timeoutId);
-            // Suppress WebSocket/connection errors from console - we handle via fallback
-            if (error?.message?.includes('websocket') || error?.message?.includes('socket.io') || error?.message?.includes('wss://')) {
-                console.log('Puter WebSocket unavailable, will try fallback');
-            }
-            if (error.name === 'AbortError') {
-                // Check if it was user-cancelled or timeout
-                if (this.abortController?.signal.aborted) {
-                    throw error; // Re-throw to handle in generateImage
-                }
-                throw new Error('Request timed out. The generation is taking too long.');
-            }
-            throw error;
-        }
-    }
-
-    // Fallback: Direct REST API call to Puter to bypass WebSocket issues
-    async generateWithPuterDirect(prompt, style, size) {
-        const enhancedPrompt = this.enhancePrompt(prompt, style);
-        const [width, height] = size.split('x');
-
-        const timeoutId = setTimeout(() => this.abortController?.abort(), 90000);
-
-        try {
-            // Direct API call to Puter's driver API (bypasses WebSocket issues)
-            const response = await fetch('https://api.puter.com/drivers/call', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    interface: 'puter-ai',
-                    method: 'txt2img',
-                    args: {
-                        prompt: enhancedPrompt,
-                        provider: 'together',
-                        model: 'black-forest-labs/FLUX.1-schnell',
-                        width: parseInt(width),
-                        height: parseInt(height),
-                        disable_safety_checker: true,
-                        steps: 4,
-                        n: 1
-                    }
-                }),
-                signal: this.abortController?.signal
-            });
-
-            clearTimeout(timeoutId);
-
-            if (!response.ok) {
-                throw new Error(`Puter API error: ${response.status}`);
-            }
-
-            const data = await response.json();
-
-            // The API returns a result with the image
-            if (data?.result?.image_url || data?.result?.url) {
-                const imageUrl = data.result.image_url || data.result.url;
-                // Fetch and convert to base64
-                const imgResponse = await fetch(imageUrl);
-                const blob = await imgResponse.blob();
-                const reader = new FileReader();
-
-                return new Promise((resolve, reject) => {
-                    reader.onloadend = () => resolve(reader.result);
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                });
-            }
-
-            throw new Error('No image URL in Puter response');
-        } catch (error) {
-            clearTimeout(timeoutId);
-            if (error.name === 'AbortError') {
-                if (this.abortController?.signal.aborted) {
-                    throw error;
-                }
-                throw new Error('Request timed out');
             }
             throw error;
         }
