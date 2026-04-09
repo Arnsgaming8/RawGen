@@ -282,37 +282,47 @@ class AIImageGenerator {
     }
     
     showDeviceNotification(title, body) {
-        // Check if browser supports notifications
-        if ('Notification' in window) {
-            // Request permission if not already granted
-            if (Notification.permission === 'granted') {
-                // Show notification
-                new Notification(title, {
-                    body: body,
-                    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🔥</text></svg>',
-                    badge: '🔥',
-                    tag: 'ai-generation',
-                    requireInteraction: false
-                });
-            } else if (Notification.permission !== 'denied') {
-                // Request permission
-                Notification.requestPermission().then(permission => {
-                    if (permission === 'granted') {
-                        new Notification(title, {
-                            body: body,
-                            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🔥</text></svg>',
-                            badge: '🔥',
-                            tag: 'ai-generation',
-                            requireInteraction: false
-                        });
-                    }
-                });
-            }
+        // Vibration works on all mobile devices
+        if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
+        
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        if (isIOS || !('Notification' in window)) {
+            this.showInAppNotification(title, body);
+            return;
+        }
+        
+        if (Notification.permission === 'granted') {
+            this.sendNotification(title, body);
+        } else if (Notification.permission !== 'denied') {
+            Notification.requestPermission().then(p => {
+                p === 'granted' ? this.sendNotification(title, body) : this.showInAppNotification(title, body);
+            });
+        } else {
+            this.showInAppNotification(title, body);
         }
     }
     
+    sendNotification(title, body) {
+        const options = { body, icon: '🔥', badge: '🔥', tag: 'ai-gen', silent: false };
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.ready.then(r => r.showNotification(title, options)).catch(() => new Notification(title, options));
+        } else {
+            new Notification(title, options);
+        }
+    }
+    
+    showInAppNotification(title, body) {
+        // Fallback toast notification for iOS/blocked
+        const toast = document.createElement('div');
+        toast.style.cssText = 'position:fixed;top:20px;right:20px;background:#ff0040;color:white;padding:15px;border-radius:8px;z-index:9999;animation:slideIn 0.3s;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+        toast.innerHTML = `<strong>${title}</strong><br>${body}`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+    }
+    
     requestNotificationPermission() {
-        if ('Notification' in window && Notification.permission === 'default') {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        if (!isIOS && 'Notification' in window && Notification.permission === 'default') {
             Notification.requestPermission();
         }
     }
@@ -479,6 +489,13 @@ class AIImageGenerator {
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     new AIImageGenerator();
+    
+    // Register service worker for mobile notifications
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(() => {
+            console.log('Service worker registration failed');
+        });
+    }
 });
 
 // Add some keyboard shortcuts
