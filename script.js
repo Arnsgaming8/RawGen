@@ -5,12 +5,7 @@ class AIImageGenerator {
         this.currentImageUrl = null;
         this.generatedImages = []; // Store generated images for gallery
         this.abortController = null; // For canceling generation
-        this.apiEndpoints = [
-            'https://image.pollinations.ai/prompt/',
-            'https://api.deepai.org/api/text2img',
-            'https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image'
-        ];
-        this.currentApiIndex = 0;
+        // Using Pollinations for image generation (fast, free, no API key)
     }
 
     initializeElements() {
@@ -86,39 +81,27 @@ class AIImageGenerator {
         // Create new abort controller for this generation
         this.abortController = new AbortController();
 
-        // Use local AI first, then fallback to proxy methods
-        const methods = [
-            () => this.generateWithLocalAI(userPrompt, style, size),
-            () => this.generateWithLocalProxy(userPrompt, style, size),
-            () => this.generateWithHuggingFaceProxy(userPrompt, style, size)
-        ];
-
-        for (const method of methods) {
-            try {
-                const imageUrl = await method();
-                if (imageUrl) {
-                    this.displayImage(imageUrl, originalPrompt);
-                    this.currentImageUrl = imageUrl;
-                    this.abortController = null;
-                    return;
-                }
-            } catch (error) {
-                // Check if aborted
-                if (error.name === 'AbortError' || this.abortController?.signal.aborted) {
-                    console.log('Generation was cancelled');
-                    this.abortController = null;
-                    return; // Don't show error, already handled in cancelGeneration
-                }
-                const errorMsg = error?.message || error?.toString() || 'Unknown error';
-                console.log('API method failed, trying next:', errorMsg);
-                continue;
+        // Use Pollinations for image generation
+        try {
+            const imageUrl = await this.generateWithPollinations(userPrompt, style, size);
+            if (imageUrl) {
+                this.displayImage(imageUrl, originalPrompt);
+                this.currentImageUrl = imageUrl;
+                this.abortController = null;
+                return;
             }
+        } catch (error) {
+            // Check if aborted
+            if (error.name === 'AbortError' || this.abortController?.signal.aborted) {
+                console.log('Generation was cancelled');
+                this.abortController = null;
+                return;
+            }
+            const errorMsg = error?.message || error?.toString() || 'Unknown error';
+            console.log('Pollinations failed:', errorMsg);
+            this.showError('Image generation failed. Please try again.');
         }
 
-        // Only show error if not aborted
-        if (!this.abortController?.signal.aborted) {
-            this.showError('All generation methods failed. Please try again.');
-        }
         this.abortController = null;
         this.setLoadingState(false);
     }
@@ -448,58 +431,13 @@ class AIImageGenerator {
         this.errorSection.classList.add('hidden');
     }
 
-    async generateWithLocalAI(prompt, style, size) {
+    async generateWithPollinations(prompt, style, size) {
         const enhancedPrompt = this.enhancePrompt(prompt, style);
         const [width, height] = size.split('x');
         
-        const timeoutId = setTimeout(() => this.abortController?.abort(), 120000); // 2 minute timeout for local AI
+        const timeoutId = setTimeout(() => this.abortController?.abort(), 120000); // 2 minute timeout
         
         try {
-            const response = await fetch('/api/local', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    prompt: enhancedPrompt,
-                    width: parseInt(width),
-                    height: parseInt(height)
-                }),
-                signal: this.abortController?.signal
-            });
-            
-            clearTimeout(timeoutId);
-
-            if (!response.ok) {
-                throw new Error('Local AI server error');
-            }
-
-            const data = await response.json();
-            if (data.success && data.imageUrl) {
-                return data.imageUrl;
-            }
-            throw new Error(data.error || 'No image returned from local AI');
-        } catch (error) {
-            clearTimeout(timeoutId);
-            if (error.name === 'AbortError') {
-                if (this.abortController?.signal.aborted) {
-                    throw error;
-                }
-                throw new Error('Local AI request timed out');
-            }
-            throw error;
-        }
-    }
-
-    async generateWithLocalProxy(prompt, style, size) {
-        const enhancedPrompt = this.enhancePrompt(prompt, style);
-        const [width, height] = size.split('x');
-        
-        // Use class abortController for both timeout and cancel
-        const timeoutId = setTimeout(() => this.abortController?.abort(), 90000); // 90 second timeout
-        
-        try {
-            // Use local server proxy for Pollinations
             const response = await fetch('/api/pollinations', {
                 method: 'POST',
                 headers: {
@@ -516,74 +454,26 @@ class AIImageGenerator {
             clearTimeout(timeoutId);
 
             if (!response.ok) {
-                throw new Error('Local proxy error');
+                throw new Error('Server error');
             }
 
             const data = await response.json();
             if (data.success && data.imageUrl) {
-                // Image is already base64 encoded, no need to preload
                 return data.imageUrl;
             }
-            throw new Error('No image returned from proxy');
+            throw new Error(data.error || 'No image returned');
         } catch (error) {
             clearTimeout(timeoutId);
             if (error.name === 'AbortError') {
-                // Check if it was user-cancelled or timeout
                 if (this.abortController?.signal.aborted) {
-                    throw error; // Re-throw to handle in generateImage
+                    throw error;
                 }
-                throw new Error('Request timed out. The generation is taking too long.');
+                throw new Error('Request timed out');
             }
             throw error;
         }
     }
 
-    async generateWithHuggingFaceProxy(prompt, style, size) {
-        const enhancedPrompt = this.enhancePrompt(prompt, style);
-        const [width, height] = size.split('x');
-        
-        // Use class abortController for both timeout and cancel
-        const timeoutId = setTimeout(() => this.abortController?.abort(), 90000); // 90 second timeout
-        
-        try {
-            // Use HuggingFace through local proxy
-            const response = await fetch('/api/huggingface', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    prompt: enhancedPrompt,
-                    width: parseInt(width),
-                    height: parseInt(height)
-                }),
-                signal: this.abortController?.signal
-            });
-            
-            clearTimeout(timeoutId);
-
-            if (!response.ok) {
-                throw new Error('HuggingFace proxy error');
-            }
-
-            const data = await response.json();
-            if (data.success && data.imageUrl) {
-                // Image is already base64 encoded, no need to preload
-                return data.imageUrl;
-            }
-            throw new Error('No image returned from HuggingFace');
-        } catch (error) {
-            clearTimeout(timeoutId);
-            if (error.name === 'AbortError') {
-                // Check if it was user-cancelled or timeout
-                if (this.abortController?.signal.aborted) {
-                    throw error; // Re-throw to handle in generateImage
-                }
-                throw new Error('Request timed out. The generation is taking too long.');
-            }
-            throw error;
-        }
-    }
 }
 
 // Initialize the app when DOM is loaded

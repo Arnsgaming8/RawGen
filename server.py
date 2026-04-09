@@ -9,9 +9,181 @@ import ssl
 import time
 import base64
 import os
+import subprocess
+import threading
+import sys
+import shutil
+from pathlib import Path
 
 # Configuration for local AI server
 LOCAL_AI_SERVER = os.environ.get('LOCAL_AI_SERVER', 'http://127.0.0.1:7860')
+WEBUI_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'stable-diffusion-webui')
+WEBUI_PROCESS = None
+
+def install_webui():
+    """Install Automatic1111 Stable Diffusion WebUI"""
+    print("=" * 60)
+    print("Setting up Local AI (Automatic1111)...")
+    print("=" * 60)
+    
+    if os.path.exists(WEBUI_DIR):
+        print(f"WebUI already exists at: {WEBUI_DIR}")
+        return True
+    
+    try:
+        # Clone the repository
+        print("Downloading Automatic1111 WebUI...")
+        result = subprocess.run(
+            ['git', 'clone', 'https://github.com/AUTOMATIC1111/stable-diffusion-webui.git', WEBUI_DIR],
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
+        if result.returncode != 0:
+            print(f"Git clone failed: {result.stderr}")
+            return False
+        
+        print("WebUI downloaded successfully!")
+        
+        # Download an uncensored model
+        download_uncensored_model()
+        
+        return True
+    except Exception as e:
+        print(f"Error installing WebUI: {e}")
+        return False
+
+def download_uncensored_model():
+    """Download an uncensored model"""
+    models_dir = os.path.join(WEBUI_DIR, 'models', 'Stable-diffusion')
+    os.makedirs(models_dir, exist_ok=True)
+    
+    # Using Deliberate v3 - popular uncensored model
+    model_url = "https://civitai.com/api/download/models/15236"
+    model_path = os.path.join(models_dir, 'deliberate_v3.safetensors')
+    
+    if os.path.exists(model_path):
+        print("Uncensored model already exists")
+        return
+    
+    print("Downloading uncensored model (deliberate_v3)...")
+    print("This may take a few minutes...")
+    
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        req = urllib.request.Request(model_url, headers=headers)
+        context = ssl._create_unverified_context()
+        
+        with urllib.request.urlopen(req, context=context, timeout=600) as response:
+            total_size = int(response.headers.get('Content-Length', 0))
+            downloaded = 0
+            chunk_size = 8192
+            
+            with open(model_path, 'wb') as f:
+                while True:
+                    chunk = response.read(chunk_size)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size > 0:
+                        percent = (downloaded / total_size) * 100
+                        print(f"\rDownloading model: {percent:.1f}%", end='', flush=True)
+        
+        print(f"\nModel downloaded to: {model_path}")
+    except Exception as e:
+        print(f"Error downloading model: {e}")
+        print("You can manually download models from civitai.com and place them in:")
+        print(f"  {models_dir}")
+
+def start_webui():
+    """Start the WebUI server with API enabled"""
+    global WEBUI_PROCESS
+    
+    if not os.path.exists(WEBUI_DIR):
+        print("WebUI not installed. Run install first.")
+        return False
+    
+    # Check if already running
+    if is_webui_running():
+        print("WebUI is already running!")
+        return True
+    
+    print("Starting WebUI server...")
+    
+    # Determine Python executable
+    python_exe = sys.executable
+    webui_script = os.path.join(WEBUI_DIR, 'launch.py')
+    
+    # Build command with args for fast, uncensored generation
+    cmd = [
+        python_exe,
+        webui_script,
+        '--api',  # Enable API
+        '--listen',  # Listen on all interfaces
+        '--port', '7860',
+        '--disable-safe-unpickle',  # Disable safety checks
+        '--no-half-vae',  # Better compatibility
+        '--xformers',  # Speed optimization if available
+        '--opt-sub-quad-attention',  # Memory optimization
+        '--lowvram',  # For lower VRAM systems
+    ]
+    
+    try:
+        # Start WebUI as subprocess
+        WEBUI_PROCESS = subprocess.Popen(
+            cmd,
+            cwd=WEBUI_DIR,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
+        )
+        
+        # Wait for it to start
+        print("Waiting for WebUI to start (this may take 1-2 minutes on first run)...")
+        for i in range(120):  # Wait up to 2 minutes
+            if is_webui_running():
+                print("WebUI is running!")
+                return True
+            time.sleep(1)
+            if i % 10 == 0:
+                print(f"  Still starting... ({i}s)")
+        
+        print("Timeout waiting for WebUI to start")
+        return False
+        
+    except Exception as e:
+        print(f"Error starting WebUI: {e}")
+        return False
+
+def is_webui_running():
+    """Check if WebUI is responding"""
+    try:
+        context = ssl._create_unverified_context()
+        req = urllib.request.Request(
+            'http://127.0.0.1:7860/sdapi/v1/samplers',
+            headers={'User-Agent': 'Mozilla/5.0'},
+            method='GET'
+        )
+        with urllib.request.urlopen(req, context=context, timeout=2) as response:
+            return response.status == 200
+    except:
+        return False
+
+def setup_local_ai():
+    """Setup and start local AI automatically"""
+    # Install if needed
+    if not install_webui():
+        print("Failed to install WebUI")
+        return False
+    
+    # Start WebUI
+    if not start_webui():
+        print("Failed to start WebUI")
+        return False
+    
+    return True
 
 class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
@@ -65,14 +237,6 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
             
             if api_type == 'pollinations':
                 result = self.handle_pollinations(data)
-            elif api_type == 'stability':
-                result = self.handle_stability(data)
-            elif api_type == 'huggingface':
-                result = self.handle_huggingface(data)
-            elif api_type == 'image':
-                result = self.handle_image_proxy(data)
-            elif api_type == 'local':
-                result = self.handle_local_ai(data)
             else:
                 result = {'error': 'Unknown API type'}
             
@@ -97,7 +261,7 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
         width = data.get('width', 512)
         height = data.get('height', 512)
         
-        # Build simple Pollinations URL with random seed for unique images
+        # Build Pollinations URL with random seed for unique images
         encoded_prompt = urllib.parse.quote(prompt)
         import random
         seed = random.randint(1, 1000000)
@@ -108,7 +272,7 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
             encoded_negative = urllib.parse.quote(negative)
             image_url += f"&negative={encoded_negative}"
         
-        print(f"Generating image for: {prompt[:50]}...")
+        print(f"Generating image via Pollinations: {prompt[:50]}...")
         if negative:
             print(f"Negative prompt: {negative[:50]}...")
         
@@ -147,103 +311,6 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
                 continue
         
         return {'success': False, 'error': 'All attempts failed'}
-    
-    def handle_image_proxy(self, data):
-        image_url = data.get('imageUrl', '')
-        
-        try:
-            context = ssl._create_unverified_context()
-            with urllib.request.urlopen(image_url, context=context, timeout=30) as response:
-                if response.status == 200:
-                    image_data = response.read()
-                    import base64
-                    image_b64 = base64.b64encode(image_data).decode()
-                    
-                    return {
-                        'success': True,
-                        'imageUrl': f'data:image/png;base64,{image_b64}'
-                    }
-        except Exception as e:
-            print(f"Error proxying image: {e}")
-        
-        return {
-            'success': False,
-            'error': 'Failed to proxy image'
-        }
-    
-    def handle_stability(self, data):
-        # This would require a real API key
-        return {
-            'success': False,
-            'error': 'Stability AI requires API key'
-        }
-    
-    def handle_huggingface(self, data):
-        # Just use Pollinations - it works and is unrestricted
-        return self.handle_pollinations(data)
-    
-    def handle_local_ai(self, data):
-        prompt = data.get('prompt', '')
-        negative = data.get('negative', '')
-        width = data.get('width', 512)
-        height = data.get('height', 512)
-        
-        try:
-            # Connect to local Stable Diffusion WebUI (Automatic1111)
-            # Default URL: http://127.0.0.1:7860/sdapi/v1/txt2img
-            url = f"{LOCAL_AI_SERVER}/sdapi/v1/txt2img"
-            
-            payload = {
-                "prompt": prompt,
-                "negative_prompt": negative if negative else "",
-                "width": width,
-                "height": height,
-                "steps": 20,
-                "cfg_scale": 7,
-                "sampler_name": "Euler a"
-            }
-            
-            headers = {
-                'Content-Type': 'application/json'
-            }
-            
-            print(f"Sending to local AI server: {url}")
-            print(f"Prompt: {prompt[:50]}...")
-            
-            req = urllib.request.Request(
-                url,
-                json.dumps(payload).encode('utf-8'),
-                headers
-            )
-            
-            context = ssl._create_unverified_context()
-            
-            with urllib.request.urlopen(req, context=context, timeout=120) as response:
-                if response.status == 200:
-                    result = json.loads(response.read().decode('utf-8'))
-                    
-                    if 'images' in result and len(result['images']) > 0:
-                        image_b64 = result['images'][0]
-                        print(f"Success! Generated image from local AI")
-                        
-                        return {
-                            'success': True,
-                            'imageUrl': f'data:image/png;base64,{image_b64}'
-                        }
-                    else:
-                        return {'success': False, 'error': 'No image returned from local AI'}
-                else:
-                    return {'success': False, 'error': f'HTTP {response.status}'}
-                    
-        except urllib.error.URLError as e:
-            print(f"Connection error to local AI server: {e}")
-            return {
-                'success': False,
-                'error': f'Cannot connect to local AI server at {LOCAL_AI_SERVER}. Make sure Stable Diffusion WebUI is running.'
-            }
-        except Exception as e:
-            print(f"Error with local AI: {e}")
-            return {'success': False, 'error': str(e)}
     
     def try_pollinations_working_simple(self, prompt, width, height):
         # ABSOLUTELY GUARANTEED working method
@@ -677,4 +744,5 @@ if __name__ == '__main__':
     
     with socketserver.TCPServer(("", PORT), Handler) as httpd:
         print(f"Server running at http://localhost:{PORT}")
+        print("Using Pollinations API for image generation")
         httpd.serve_forever()
