@@ -578,9 +578,13 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == '__main__':
     import os
+    import socket
     # Use PORT from environment variable (for Render/Heroku) or default to 8000
     PORT = int(os.environ.get('PORT', 8000))
     Handler = APIProxyHandler
+    
+    # Allow socket reuse to prevent 'Address already in use' errors
+    socketserver.TCPServer.allow_reuse_address = True
     
     with socketserver.TCPServer(("", PORT), Handler) as httpd:
         print(f"Server running at http://localhost:{PORT}")
