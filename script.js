@@ -477,9 +477,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Register service worker for mobile notifications
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(() => {
-            console.log('Service worker registration failed');
-        });
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            .then(reg => console.log('SW registered:', reg.scope))
+            .catch(err => console.log('SW failed:', err.message));
     }
 });
 
