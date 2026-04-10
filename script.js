@@ -445,43 +445,28 @@ class AIImageGenerator {
         const enhancedPrompt = this.enhancePrompt(prompt, style);
         const [width, height] = size.split('x');
         
-        const timeoutId = setTimeout(() => this.abortController?.abort(), 120000); // 2 minute timeout
-        
-        try {
-            const response = await fetch('/api/pollinations', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    prompt: enhancedPrompt,
-                    width: parseInt(width),
-                    height: parseInt(height)
-                }),
-                signal: this.abortController?.signal
-            });
-            
-            clearTimeout(timeoutId);
+        const response = await fetch('/api/pollinations', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                prompt: enhancedPrompt,
+                width: parseInt(width),
+                height: parseInt(height)
+            }),
+            signal: this.abortController?.signal
+        });
 
-            if (!response.ok) {
-                throw new Error('Server error');
-            }
-
-            const data = await response.json();
-            if (data.success && data.imageUrl) {
-                return data.imageUrl;
-            }
-            throw new Error(data.error || 'No image returned');
-        } catch (error) {
-            clearTimeout(timeoutId);
-            if (error.name === 'AbortError') {
-                if (this.abortController?.signal.aborted) {
-                    throw error;
-                }
-                throw new Error('Request timed out');
-            }
-            throw error;
+        if (!response.ok) {
+            throw new Error('Server error');
         }
+
+        const data = await response.json();
+        if (data.success && data.imageUrl) {
+            return data.imageUrl;
+        }
+        throw new Error(data.error || 'No image returned');
     }
 
 }
