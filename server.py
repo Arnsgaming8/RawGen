@@ -83,61 +83,70 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({'error': str(e)}).encode())
     
     def handle_pollinations(self, data):
-        prompt = data.get('prompt', '')
-        negative = data.get('negative', '')
-        width = data.get('width', 512)
-        height = data.get('height', 512)
-        
-        # Build Pollinations URL with random seed for unique images
-        encoded_prompt = urllib.parse.quote(prompt)
-        import random
-        seed = random.randint(1, 1000000)
-        
-        # Add negative prompt if provided
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={seed}&nologo=true"
-        if negative:
-            encoded_negative = urllib.parse.quote(negative)
-            image_url += f"&negative={encoded_negative}"
-        
-        print(f"Generating image via Pollinations: {prompt[:50]}...")
-        if negative:
-            print(f"Negative prompt: {negative[:50]}...")
-        
-        # Try up to 3 times with increasing timeouts
-        for attempt in range(3):
-            try:
-                print(f"Attempt {attempt + 1}/3...")
-                context = ssl._create_unverified_context()
-                req = urllib.request.Request(
-                    image_url,
-                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-                )
-                
-                # Increase timeout with each attempt
-                timeout = 30 + (attempt * 30)
-                
-                with urllib.request.urlopen(req, context=context, timeout=timeout) as response:
-                    if response.status == 200:
-                        image_data = response.read()
-                        image_b64 = base64.b64encode(image_data).decode()
-                        print(f"Success! Generated {len(image_data)} bytes")
-                        
-                        return {
-                            'success': True,
-                            'imageUrl': f'data:image/png;base64,{image_b64}'
-                        }
-                    else:
-                        print(f"Error: HTTP {response.status}")
-                        if attempt == 2:  # Last attempt
-                            return {'success': False, 'error': f'HTTP {response.status}'}
-                        
-            except Exception as e:
-                print(f"Error on attempt {attempt + 1}: {e}")
-                if attempt == 2:  # Last attempt
-                    return {'success': False, 'error': str(e)}
-                continue
-        
-        return {'success': False, 'error': 'All attempts failed'}
+        try:
+            prompt = data.get('prompt', '')
+            negative = data.get('negative', '')
+            width = data.get('width', 512)
+            height = data.get('height', 512)
+            
+            # Validate prompt
+            if not prompt:
+                return {'success': False, 'error': 'No prompt provided'}
+            
+            # Build Pollinations URL with random seed for unique images
+            encoded_prompt = urllib.parse.quote(prompt)
+            import random
+            seed = random.randint(1, 1000000)
+            
+            # Add negative prompt if provided
+            image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={seed}&nologo=true"
+            if negative:
+                encoded_negative = urllib.parse.quote(negative)
+                image_url += f"&negative={encoded_negative}"
+            
+            print(f"Generating image via Pollinations: {prompt[:50]}...")
+            print(f"URL: {image_url[:100]}...")
+            
+            # Try up to 3 times with increasing timeouts
+            for attempt in range(3):
+                try:
+                    print(f"Attempt {attempt + 1}/3...")
+                    context = ssl._create_unverified_context()
+                    req = urllib.request.Request(
+                        image_url,
+                        headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+                    )
+                    
+                    # Increase timeout with each attempt
+                    timeout = 30 + (attempt * 30)
+                    
+                    with urllib.request.urlopen(req, context=context, timeout=timeout) as response:
+                        if response.status == 200:
+                            image_data = response.read()
+                            image_b64 = base64.b64encode(image_data).decode()
+                            print(f"Success! Generated {len(image_data)} bytes")
+                            
+                            return {
+                                'success': True,
+                                'imageUrl': f'data:image/png;base64,{image_b64}'
+                            }
+                        else:
+                            print(f"Error: HTTP {response.status}")
+                            if attempt == 2:  # Last attempt
+                                return {'success': False, 'error': f'HTTP {response.status}'}
+                            
+                except Exception as e:
+                    print(f"Error on attempt {attempt + 1}: {e}")
+                    if attempt == 2:  # Last attempt
+                        return {'success': False, 'error': str(e)}
+                    continue
+            
+            return {'success': False, 'error': 'All attempts failed'}
+        except Exception as e:
+            print(f"CRITICAL ERROR in handle_pollinations: {e}")
+            import traceback
+            traceback.print_exc()
+            return {'success': False, 'error': f'Server error: {str(e)}'}
     
     def try_pollinations_working_simple(self, prompt, width, height):
         # ABSOLUTELY GUARANTEED working method
