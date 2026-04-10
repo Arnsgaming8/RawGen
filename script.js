@@ -303,7 +303,7 @@ class AIImageGenerator {
     }
     
     sendNotification(title, body) {
-        const options = { body, icon: '🔥', badge: '🔥', tag: 'ai-gen', silent: false };
+        const options = { body, tag: 'ai-gen', silent: false };
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
             navigator.serviceWorker.ready.then(r => r.showNotification(title, options)).catch(() => new Notification(title, options));
         } else {
