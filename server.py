@@ -13,6 +13,8 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/':
             self.serve_file('index.html')
+        elif self.path == '/health':
+            self.send_health_check()
         elif self.path == '/style.css':
             self.serve_file('style.css')
         elif self.path == '/script.js':
@@ -25,6 +27,13 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.serve_file('sitemap.xml')
         else:
             self.send_error(404)
+    
+    def send_health_check(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.send_cors_headers()
+        self.end_headers()
+        self.wfile.write(b'OK')
     
     def do_POST(self):
         if self.path.startswith('/api/'):
@@ -172,6 +181,15 @@ if __name__ == '__main__':
     PORT = int(os.environ.get('PORT', 8000))
     socketserver.TCPServer.allow_reuse_address = True
     
-    with socketserver.TCPServer(('', PORT), APIProxyHandler) as httpd:
-        print(f'Server running on port {PORT}')
-        httpd.serve_forever()
+    print(f'=== RawGen Server Starting ===')
+    print(f'Port: {PORT}')
+    print(f'Python: Running')
+    
+    try:
+        with socketserver.TCPServer(('', PORT), APIProxyHandler) as httpd:
+            print(f'Server bound to port {PORT}')
+            print(f'Ready for requests')
+            httpd.serve_forever()
+    except OSError as e:
+        print(f'ERROR: Could not bind to port {PORT}: {e}')
+        raise
