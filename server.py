@@ -49,9 +49,7 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
             
             self.send_response(200)
             self.send_header('Content-type', content_type)
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-            self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+            self.send_cors_headers()
             self.end_headers()
             self.wfile.write(content.encode())
         except FileNotFoundError:
@@ -59,7 +57,10 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
     
     def handle_api_request(self):
         try:
-            content_length = int(self.headers['Content-Length'])
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length == 0:
+                return self.send_json_error(400, 'No data provided')
+                
             post_data = self.rfile.read(content_length)
             data = json.loads(post_data.decode('utf-8'))
             
@@ -72,18 +73,30 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
             
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-            self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+            self.send_cors_headers()
             self.end_headers()
             self.wfile.write(json.dumps(result).encode())
             
+        except json.JSONDecodeError as e:
+            print(f'JSON decode error: {e}')
+            self.send_json_error(400, 'Invalid JSON')
         except Exception as e:
-            self.send_response(500)
-            self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(json.dumps({'error': str(e)}).encode())
+            print(f'API request error: {e}')
+            import traceback
+            traceback.print_exc()
+            self.send_json_error(500, str(e))
+    
+    def send_json_error(self, code, message):
+        self.send_response(code)
+        self.send_header('Content-type', 'application/json')
+        self.send_cors_headers()
+        self.end_headers()
+        self.wfile.write(json.dumps({'error': message}).encode())
+    
+    def send_cors_headers(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
     
     def handle_pollinations(self, data):
         try:
@@ -152,9 +165,7 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        self.send_cors_headers()
         self.end_headers()
 
 if __name__ == '__main__':
