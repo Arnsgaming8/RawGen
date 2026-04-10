@@ -63,6 +63,9 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(content.encode())
         except FileNotFoundError:
             self.send_error(404)
+        except BrokenPipeError:
+            # Client disconnected early (common with health checks)
+            pass
     
     def handle_api_request(self):
         try:
