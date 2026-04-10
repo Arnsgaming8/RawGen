@@ -193,6 +193,8 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.serve_file('style.css')
         elif self.path == '/script.js':
             self.serve_file('script.js')
+        elif self.path == '/sw.js':
+            self.serve_file('sw.js', 'application/javascript')
         elif self.path == '/robots.txt':
             self.serve_file('robots.txt', 'text/plain')
         elif self.path == '/sitemap.xml':
