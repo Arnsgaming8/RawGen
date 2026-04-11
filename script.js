@@ -1,13 +1,14 @@
 /**
  * RawGen - AI Image Generator
- * Clean, modular ES6+ architecture
+ * Robust architecture with retry logic and error handling
  */
 
-// Configuration
 const CONFIG = {
     API_ENDPOINT: '/api/pollinations',
     MAX_GALLERY_ITEMS: 20,
     STORAGE_KEY: 'rawgen_gallery',
+    MAX_RETRIES: 3,
+    IMAGE_TIMEOUT: 30000, // 30 seconds
     STYLE_BOOSTERS: {
         realistic: 'photorealistic, 8k resolution',
         artistic: 'artistic, creative, vibrant colors, beautiful composition',
@@ -19,25 +20,26 @@ const CONFIG = {
     }
 };
 
-class AIImageGenerator {
+class RawGenApp {
     constructor() {
-        this.elements = this.getElements();
+        this.elements = this.cacheElements();
         this.state = {
             currentImageUrl: null,
             generatedImages: [],
             abortController: null,
-            loadingInterval: null
+            loadingInterval: null,
+            isGenerating: false
         };
-        
         this.init();
     }
     
     init() {
         this.bindEvents();
         this.loadGallery();
+        this.registerServiceWorker();
     }
 
-    getElements() {
+    cacheElements() {
         return {
             form: document.getElementById('imageForm'),
             prompt: document.getElementById('prompt'),
@@ -55,6 +57,14 @@ class AIImageGenerator {
             cancelBtn: document.getElementById('cancelBtn'),
             loadingBar: document.getElementById('imageLoadingBar')
         };
+    }
+    
+    registerServiceWorker() {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                .then(reg => console.log('SW registered:', reg.scope))
+                .catch(err => console.log('SW failed:', err.message));
+        }
     }
 
     bindEvents() {
@@ -91,29 +101,102 @@ class AIImageGenerator {
     }
 
     async generateImage(userPrompt, style, size) {
+        if (this.state.isGenerating) return;
+        
+        this.state.isGenerating = true;
         this.setLoadingState(true);
         this.hideError();
-        
         this.state.abortController = new AbortController();
 
         try {
-            const imageUrl = await this.generateWithPollinations(userPrompt, style, size);
-            if (imageUrl) {
-                this.displayImage(imageUrl, userPrompt);
-                this.state.currentImageUrl = imageUrl;
-                return;
+            // Get URL from API
+            const response = await this.fetchGenerationUrl(userPrompt, style, size);
+            if (!response.success) {
+                throw new Error(response.error || 'Failed to get generation URL');
             }
+
+            // Try primary URL first, then fallbacks
+            const urls = [response.imageUrl, ...(response.fallbackUrls || [])];
+            const loadedUrl = await this.tryLoadImages(urls);
+            
+            if (loadedUrl) {
+                this.state.currentImageUrl = loadedUrl;
+                await this.displayImage(loadedUrl, userPrompt);
+            } else {
+                throw new Error('All image URLs failed to load. Pollinations may be down.');
+            }
+            
         } catch (error) {
             if (error.name === 'AbortError' || this.state.abortController?.signal.aborted) {
                 console.log('Generation cancelled');
                 return;
             }
-            console.log('Generation failed:', error.message);
-            this.showError('Image generation failed. Please try again.');
+            console.error('Generation failed:', error);
+            this.showError(error.message || 'Image generation failed. Please try again.');
         } finally {
+            this.state.isGenerating = false;
             this.state.abortController = null;
             this.setLoadingState(false);
         }
+    }
+    
+    async fetchGenerationUrl(prompt, style, size) {
+        const enhancedPrompt = this.enhancePrompt(prompt, style);
+        const [width, height] = size.split('x').map(Number);
+        
+        const response = await fetch(CONFIG.API_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt: enhancedPrompt,
+                width,
+                height
+            }),
+            signal: this.state.abortController?.signal
+        });
+
+        if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+        }
+        
+        return await response.json();
+    }
+    
+    async tryLoadImages(urls) {
+        for (const url of urls) {
+            try {
+                console.log('Trying URL:', url.substring(0, 80) + '...');
+                await this.loadImageWithTimeout(url, CONFIG.IMAGE_TIMEOUT);
+                console.log('Image loaded successfully');
+                return url;
+            } catch (err) {
+                console.warn('URL failed:', err.message);
+                continue;
+            }
+        }
+        return null;
+    }
+    
+    loadImageWithTimeout(url, timeout) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            const timer = setTimeout(() => {
+                img.src = '';
+                reject(new Error('Image load timeout'));
+            }, timeout);
+            
+            img.onload = () => {
+                clearTimeout(timer);
+                resolve(img);
+            };
+            
+            img.onerror = () => {
+                clearTimeout(timer);
+                reject(new Error('Image failed to load'));
+            };
+            
+            img.src = url;
+        });
     }
 
     enhancePrompt(prompt, style) {
@@ -132,16 +215,7 @@ class AIImageGenerator {
         return `${enhanced}, best quality, highly detailed`;
     }
 
-    preloadImage(url) {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => resolve(img);
-            img.onerror = () => reject(new Error('Failed to load image'));
-            img.src = url;
-        });
-    }
-
-    displayImage(imageUrl, originalPrompt = '') {
+    async displayImage(imageUrl, originalPrompt = '') {
         const { imageContainer, downloadSection, prompt } = this.elements;
         
         imageContainer.innerHTML = `
@@ -410,40 +484,11 @@ class AIImageGenerator {
         this.elements.errorSection.classList.add('hidden');
     }
 
-    async generateWithPollinations(prompt, style, size) {
-        const enhancedPrompt = this.enhancePrompt(prompt, style);
-        const [width, height] = size.split('x');
-        
-        const response = await fetch(CONFIG.API_ENDPOINT, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                prompt: enhancedPrompt,
-                width: parseInt(width),
-                height: parseInt(height)
-            }),
-            signal: this.state.abortController?.signal
-        });
-
-        if (!response.ok) throw new Error('Server error');
-        
-        const data = await response.json();
-        if (data.success && data.imageUrl) return data.imageUrl;
-        throw new Error(data.error || 'No image returned');
-    }
-
 }
 
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    new AIImageGenerator();
-    
-    // Register service worker for mobile notifications
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' })
-            .then(reg => console.log('SW registered:', reg.scope))
-            .catch(err => console.log('SW failed:', err.message));
-    }
+    window.app = new RawGenApp();
 });
 
 // Add some keyboard shortcuts
