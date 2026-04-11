@@ -387,13 +387,7 @@ main {
     width: 0%;
     border-radius: 3px;
     transition: width 0.3s ease;
-    animation: loadingBarAnimation 2s ease-in-out infinite, loadingBarGradient 3s linear infinite;
-}
-
-@keyframes loadingBarAnimation {
-    0% { width: 0%; }
-    50% { width: 70%; }
-    100% { width: 100%; }
+    animation: loadingBarGradient 3s linear infinite;
 }
 
 @keyframes loadingBarGradient {

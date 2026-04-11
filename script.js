@@ -371,6 +371,7 @@ class AIImageGenerator {
     
     startLoadingAnimation() {
         const percentageEls = document.querySelectorAll('.loading-percentage');
+        const loadingBars = document.querySelectorAll('.loading-bar');
         if (percentageEls.length === 0) return;
         
         let percentage = 0;
@@ -381,7 +382,9 @@ class AIImageGenerator {
                 clearInterval(this.state.loadingInterval);
                 this.state.loadingInterval = null;
             }
-            percentageEls.forEach(el => el.textContent = Math.floor(percentage) + '%');
+            const pct = Math.floor(percentage);
+            percentageEls.forEach(el => el.textContent = pct + '%');
+            loadingBars.forEach(bar => bar.style.width = pct + '%');
         }, 150);
     }
     
@@ -390,11 +393,11 @@ class AIImageGenerator {
             clearInterval(this.state.loadingInterval);
             this.state.loadingInterval = null;
         }
-        // Set all percentages to 100% when complete
+        // Set all percentages and bars to 100% when complete
         const percentageEls = document.querySelectorAll('.loading-percentage');
-        percentageEls.forEach(el => {
-            el.textContent = '100%';
-        });
+        const loadingBars = document.querySelectorAll('.loading-bar');
+        percentageEls.forEach(el => el.textContent = '100%');
+        loadingBars.forEach(bar => bar.style.width = '100%');
     }
 
     showError(message) {
