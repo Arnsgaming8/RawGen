@@ -173,19 +173,22 @@ class RawGenApp {
 
     cacheElements() {
         return {
-            promptInput: document.getElementById('promptInput'),
-            styleSelect: document.getElementById('styleSelect'),
+            promptInput: document.getElementById('prompt'),
+            styleSelect: document.getElementById('style'),
             generateBtn: document.getElementById('generateBtn'),
-            loading: document.getElementById('loading'),
+            cancelBtn: document.getElementById('cancelBtn'),
+            loading: document.getElementById('loadingIndicator'),
+            imageLoadingBar: document.getElementById('imageLoadingBar'),
             progressBar: document.querySelector('.loading-bar'),
             progressText: document.querySelector('.loading-percentage'),
-            result: document.getElementById('result'),
-            imageOutput: document.getElementById('imageOutput'),
+            imageContainer: document.getElementById('imageContainer'),
             downloadBtn: document.getElementById('downloadBtn'),
-            errorDisplay: document.getElementById('error'),
-            gallery: document.getElementById('gallery'),
-            clearGalleryBtn: document.getElementById('clearGallery'),
-            sizeSelect: document.getElementById('sizeSelect')
+            downloadSection: document.getElementById('downloadSection'),
+            errorSection: document.getElementById('errorSection'),
+            errorMessage: document.getElementById('errorMessage'),
+            gallery: document.getElementById('galleryGrid'),
+            clearGalleryBtn: document.getElementById('clearGalleryBtn'),
+            sizeSelect: document.getElementById('size')
         };
     }
 
@@ -269,7 +272,7 @@ class RawGenApp {
         }
         this.requestQueue.clear();
         this.setLoadingState(false);
-        this.showError('Generation cancelled.', true);
+        this.showError('Generation cancelled by user.', true);
     }
 
     async generateImage(userPrompt, style, size) {
@@ -408,58 +411,75 @@ class RawGenApp {
     }
 
     async displayImage(url, prompt) {
-        const { imageOutput, downloadBtn, result } = this.elements;
+        const { imageContainer, downloadBtn, downloadSection } = this.elements;
 
-        imageOutput.src = url;
-        imageOutput.alt = prompt;
-        downloadBtn.href = url;
-        downloadBtn.download = `rawgen-${Date.now()}.png`;
-        result.classList.remove('hidden');
+        // Clear container and add image
+        if (imageContainer) {
+            imageContainer.innerHTML = `<img src="${url}" alt="${prompt}" style="max-width: 100%; border-radius: 8px;">`;
+            imageContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Show download section
+        if (downloadSection) downloadSection.style.display = 'block';
+
+        // Store current URL for download
+        this.state.currentImageUrl = url;
 
         this.addToGallery(url, prompt);
-
-        imageOutput.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
     setLoadingState(isLoading) {
-        const { loading, generateBtn, progressBar, progressText } = this.elements;
+        const { loading, imageLoadingBar, generateBtn, cancelBtn, progressBar, progressText } = this.elements;
 
         if (isLoading) {
-            loading.classList.remove('hidden');
-            generateBtn.disabled = true;
-            generateBtn.innerHTML = '<span class="icon">⏳</span> Generating...';
+            if (loading) loading.style.display = 'block';
+            if (imageLoadingBar) imageLoadingBar.style.display = 'block';
+            if (cancelBtn) cancelBtn.style.display = 'inline-block';
+            if (generateBtn) {
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = '<span class="icon">🔥</span> GENERATING...';
+            }
 
             let progress = 0;
-            this.state.loadingInterval = setInterval(() => {
-                progress = Math.min(progress + 2, 95);
-                progressBar.style.width = `${progress}%`;
-                progressText.textContent = `${Math.round(progress)}%`;
-            }, 1000);
+            if (progressBar && progressText) {
+                this.state.loadingInterval = setInterval(() => {
+                    progress = Math.min(progress + 2, 95);
+                    progressBar.style.width = `${progress}%`;
+                    progressText.textContent = `${Math.round(progress)}%`;
+                }, 1000);
+            }
         } else {
-            loading.classList.add('hidden');
-            generateBtn.disabled = false;
-            generateBtn.innerHTML = '<span class="icon">✨</span> Generate';
+            if (loading) loading.style.display = 'none';
+            if (imageLoadingBar) imageLoadingBar.style.display = 'none';
+            if (cancelBtn) cancelBtn.style.display = 'none';
+            if (generateBtn) {
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '<span class="icon">🔥</span> UNLEASH CHAOS';
+            }
 
             if (this.state.loadingInterval) {
                 clearInterval(this.state.loadingInterval);
                 this.state.loadingInterval = null;
             }
 
-            progressBar.style.width = '100%';
-            progressText.textContent = '100%';
+            if (progressBar) progressBar.style.width = '100%';
+            if (progressText) progressText.textContent = '100%';
         }
     }
 
     showError(message, isInfo = false) {
-        const { errorDisplay } = this.elements;
-        errorDisplay.textContent = message;
-        errorDisplay.classList.remove('hidden');
-        errorDisplay.classList.toggle('info', isInfo);
-        errorDisplay.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        const { errorSection, errorMessage } = this.elements;
+        if (errorMessage) errorMessage.textContent = message;
+        if (errorSection) {
+            errorSection.style.display = 'block';
+            errorSection.classList.toggle('info', isInfo);
+            errorSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
     }
 
     hideError() {
-        this.elements.errorDisplay.classList.add('hidden');
+        const { errorSection } = this.elements;
+        if (errorSection) errorSection.style.display = 'none';
     }
 
     requestNotificationPermission() {
@@ -495,10 +515,15 @@ class RawGenApp {
     }
 
     loadGalleryImage(url, prompt) {
-        this.elements.imageOutput.src = url;
-        this.elements.imageOutput.alt = prompt;
-        this.elements.result.classList.remove('hidden');
-        this.elements.result.scrollIntoView({ behavior: 'smooth' });
+        const { imageContainer, downloadSection } = this.elements;
+        
+        if (imageContainer) {
+            imageContainer.innerHTML = `<img src="${url}" alt="${prompt}" style="max-width: 100%; border-radius: 8px;">`;
+            imageContainer.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        if (downloadSection) downloadSection.style.display = 'block';
+        this.state.currentImageUrl = url;
     }
 
     clearGallery() {
@@ -520,10 +545,9 @@ class RawGenApp {
     }
 
     downloadImage() {
-        const { imageOutput, downloadBtn } = this.elements;
-        if (imageOutput.src && imageOutput.src !== window.location.href) {
+        if (this.state.currentImageUrl) {
             const link = document.createElement('a');
-            link.href = imageOutput.src;
+            link.href = this.state.currentImageUrl;
             link.download = `rawgen-${Date.now()}.png`;
             document.body.appendChild(link);
             link.click();
