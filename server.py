@@ -139,9 +139,7 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
                         headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
                     )
                     
-                    timeout = 15
-                    
-                    with urllib.request.urlopen(req, context=context, timeout=timeout) as response:
+                    with urllib.request.urlopen(req, context=context) as response:
                         if response.status == 200:
                             image_data = response.read()
                             image_b64 = base64.b64encode(image_data).decode()
