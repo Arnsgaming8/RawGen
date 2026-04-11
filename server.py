@@ -123,7 +123,7 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
             encoded_prompt = urllib.parse.quote(prompt)
             seed = random.randint(1, 1000000)
             
-            image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={seed}&nologo=true&model=turbo"
+            image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={seed}&nologo=true"
             if negative:
                 encoded_negative = urllib.parse.quote(negative)
                 image_url += f"&negative={encoded_negative}"
