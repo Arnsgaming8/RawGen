@@ -130,16 +130,16 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
             
             print(f"Generating: {prompt[:50]}...")
             
-            for attempt in range(3):
+            for attempt in range(2):
                 try:
-                    print(f"Attempt {attempt + 1}/3...")
+                    print(f"Attempt {attempt + 1}/2...")
                     context = ssl._create_unverified_context()
                     req = urllib.request.Request(
                         image_url,
                         headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
                     )
                     
-                    timeout = 30 + (attempt * 15)
+                    timeout = 15
                     
                     with urllib.request.urlopen(req, context=context, timeout=timeout) as response:
                         if response.status == 200:
