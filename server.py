@@ -49,11 +49,14 @@ class RawGenHandler(http.server.SimpleHTTPRequestHandler):
     
     def do_GET(self):
         """Handle GET requests"""
-        if self.path in self.STATIC_FILES:
-            self.serve_static(self.STATIC_FILES[self.path])
-        elif self.path == '/health':
+        # Strip query string for static file lookup
+        path = self.path.split('?')[0]
+        
+        if path in self.STATIC_FILES:
+            self.serve_static(self.STATIC_FILES[path])
+        elif path == '/health':
             self.send_json_response({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
-        elif self.path.startswith('/proxy/image'):
+        elif path.startswith('/proxy/image'):
             self.proxy_image()
         else:
             self.send_error(404, 'Not found')
