@@ -115,9 +115,15 @@ class RawGenApp {
                 throw new Error(response.error || 'Failed to get generation URL');
             }
 
-            // Try primary URL first, then fallbacks
+            // Try primary URL first, then fallbacks, then proxy
             const urls = [response.imageUrl, ...(response.fallbackUrls || [])];
-            const loadedUrl = await this.tryLoadImages(urls);
+            let loadedUrl = await this.tryLoadImages(urls);
+            
+            // If direct URLs fail, try server proxy
+            if (!loadedUrl && response.proxyUrls) {
+                console.log('Direct URLs failed, trying server proxy...');
+                loadedUrl = await this.tryLoadImages(response.proxyUrls);
+            }
             
             if (loadedUrl) {
                 this.state.currentImageUrl = loadedUrl;
