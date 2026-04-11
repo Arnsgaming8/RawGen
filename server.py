@@ -117,53 +117,46 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
             width = min(data.get('width', 512), 768)
             height = min(data.get('height', 512), 768)
             
-            # Validate prompt
             if not prompt:
                 return {'success': False, 'error': 'No prompt provided'}
             
             encoded_prompt = urllib.parse.quote(prompt)
             seed = random.randint(1, 1000000)
             
-            # Try with flux model first, fallback to turbo
-            models = ['flux', 'turbo']
+            image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={seed}&nologo=true&model=turbo"
+            if negative:
+                encoded_negative = urllib.parse.quote(negative)
+                image_url += f"&negative={encoded_negative}"
             
-            for model in models:
-                print(f"Trying model: {model}")
-                image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={seed}&nologo=true&model={model}"
-                if negative:
-                    encoded_negative = urllib.parse.quote(negative)
-                    image_url += f"&negative={encoded_negative}"
-                
-                print(f"Generating: {prompt[:50]}...")
-                
-                # Try up to 2 times per model with increasing timeouts
-                for attempt in range(2):
-                    try:
-                        print(f"Attempt {attempt + 1}/2 for {model}...")
-                        context = ssl._create_unverified_context()
-                        req = urllib.request.Request(
-                            image_url,
-                            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-                        )
-                        
-                        timeout = 45 + (attempt * 30)
-                        
-                        with urllib.request.urlopen(req, context=context, timeout=timeout) as response:
-                            if response.status == 200:
-                                image_data = response.read()
-                                image_b64 = base64.b64encode(image_data).decode()
-                                print(f"Success with {model}! Generated {len(image_data)} bytes")
-                                return {
-                                    'success': True,
-                                    'imageUrl': f'data:image/png;base64,{image_b64}'
-                                }
-                            else:
-                                print(f"HTTP {response.status} for {model}")
-                                
-                    except urllib.error.URLError as e:
-                        print(f"Network error with {model}: {e}")
-                    except Exception as e:
-                        print(f"Error with {model}: {e}")
+            print(f"Generating: {prompt[:50]}...")
+            
+            for attempt in range(3):
+                try:
+                    print(f"Attempt {attempt + 1}/3...")
+                    context = ssl._create_unverified_context()
+                    req = urllib.request.Request(
+                        image_url,
+                        headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+                    )
+                    
+                    timeout = 30 + (attempt * 15)
+                    
+                    with urllib.request.urlopen(req, context=context, timeout=timeout) as response:
+                        if response.status == 200:
+                            image_data = response.read()
+                            image_b64 = base64.b64encode(image_data).decode()
+                            print(f"Success! Generated {len(image_data)} bytes")
+                            return {
+                                'success': True,
+                                'imageUrl': f'data:image/png;base64,{image_b64}'
+                            }
+                        else:
+                            print(f"HTTP {response.status}")
+                            
+                except urllib.error.URLError as e:
+                    print(f"Network error: {e}")
+                except Exception as e:
+                    print(f"Error: {e}")
             
             return {'success': False, 'error': 'Service temporarily unavailable. Please try again.'}
         except Exception as e:
