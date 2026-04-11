@@ -8,7 +8,7 @@ const CONFIG = {
     MAX_GALLERY_ITEMS: 20,
     STORAGE_KEY: 'rawgen_gallery',
     MAX_RETRIES: 3,
-    IMAGE_TIMEOUT: 30000, // 30 seconds
+    IMAGE_TIMEOUT: 60000, // 60 seconds - AI generation takes time
     STYLE_BOOSTERS: {
         realistic: 'photorealistic, 8k resolution',
         artistic: 'artistic, creative, vibrant colors, beautiful composition',
@@ -129,7 +129,7 @@ class RawGenApp {
                 this.state.currentImageUrl = loadedUrl;
                 await this.displayImage(loadedUrl, userPrompt);
             } else {
-                throw new Error('All image URLs failed to load. Pollinations may be down.');
+                throw new Error('⚠️ Pollinations AI service is currently unavailable (HTTP 500).\n\nThis is a temporary outage on their servers, not a problem with RawGen.\n\nPlease try again in a few minutes.');
             }
             
         } catch (error) {

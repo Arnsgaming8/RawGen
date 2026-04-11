@@ -204,6 +204,10 @@ class RawGenHandler(http.server.SimpleHTTPRequestHandler):
             params = urllib.parse.parse_qs(query)
             image_url = params.get('url', [''])[0]
             
+            # Handle double-encoded URLs (browser may encode % as %25 again)
+            while '%25' in image_url:
+                image_url = urllib.parse.unquote(image_url)
+            
             if not image_url or not image_url.startswith('https://image.pollinations.ai/'):
                 return self.send_error(400, 'Invalid URL')
             
@@ -216,7 +220,7 @@ class RawGenHandler(http.server.SimpleHTTPRequestHandler):
                 headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
             )
             
-            with urllib.request.urlopen(req, context=context, timeout=45) as response:
+            with urllib.request.urlopen(req, context=context, timeout=60) as response:
                 if response.status == 200:
                     image_data = response.read()
                     content_type = response.headers.get('Content-Type', 'image/png')
