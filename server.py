@@ -121,6 +121,12 @@ class RawGenHandler(http.server.SimpleHTTPRequestHandler):
             logger.exception('POST request failed')
             self.send_error(500, str(e))
     
+    def do_OPTIONS(self):
+        """Handle CORS preflight requests"""
+        self.send_response(200)
+        self.send_cors_headers()
+        self.end_headers()
+    
     def serve_static(self, filename):
         """Serve static files with proper content types"""
         try:

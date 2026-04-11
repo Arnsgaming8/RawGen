@@ -195,19 +195,23 @@ class RawGenApp {
     async checkServiceStatus() {
         try {
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 5000);
+            const timeout = setTimeout(() => controller.abort(), 3000);
             const response = await fetch(CONFIG.STATUS_ENDPOINT, {
-                signal: controller.signal
+                signal: controller.signal,
+                cache: 'no-store'
             });
             clearTimeout(timeout);
 
             if (response.ok) {
                 const data = await response.json();
                 this.state.pollinationsAvailable = data.pollinations_available;
+                return true;
             }
         } catch (error) {
-            console.log('Status check failed:', error.message);
+            // Silently fail - service might be warming up or down
+            this.state.pollinationsAvailable = this.circuitBreaker.canAttempt();
         }
+        return this.state.pollinationsAvailable;
     }
 
     registerServiceWorker() {
