@@ -31,16 +31,25 @@ self.addEventListener('activate', (event) => {
 
 // Fetch - serve from cache or network
 self.addEventListener('fetch', (event) => {
-    // Skip non-GET requests and API calls
-    if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
+    const url = new URL(event.request.url);
+    
+    // NEVER cache API or proxy calls
+    if (event.request.method !== 'GET' || 
+        url.pathname.startsWith('/api/') || 
+        url.pathname.startsWith('/proxy/')) {
+        return;
+    }
+    
+    // Skip external requests
+    if (url.origin !== self.location.origin) {
         return;
     }
     
     event.respondWith(
         caches.match(event.request).then(cached => {
-            // Return cached or fetch new
+            // Network first, cache fallback
             const fetchPromise = fetch(event.request).then(response => {
-                // Cache new successful responses
+                // Cache successful static responses only
                 if (response.ok && response.type === 'basic') {
                     const clone = response.clone();
                     caches.open(CACHE_NAME).then(cache => {
@@ -48,9 +57,12 @@ self.addEventListener('fetch', (event) => {
                     });
                 }
                 return response;
-            }).catch(() => cached);
+            }).catch(err => {
+                console.error('Fetch failed:', err);
+                return cached;
+            });
             
-            return cached || fetchPromise;
+            return fetchPromise || cached;
         })
     );
 });

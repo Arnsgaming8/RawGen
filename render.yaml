@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: rawgen
+    name: rawgen-t43n
     runtime: python
     plan: free
-    buildCommand: pip install -r requirements.txt || echo "No requirements"
+    buildCommand: ""
     startCommand: python server.py
     healthCheckPath: /health
     envVars:

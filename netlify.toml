@@ -2,6 +2,7 @@
   publish = "."
   command = "echo 'Static site - no build needed'"
 
+# API and proxy redirects MUST come before catch-all
 [[redirects]]
   from = "/api/*"
   to = "https://rawgen-t43n.onrender.com/api/:splat"
@@ -14,10 +15,12 @@
   status = 200
   force = true
 
+# Catch-all MUST be last
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+  force = false
 
 [build.environment]
   NODE_VERSION = "20"

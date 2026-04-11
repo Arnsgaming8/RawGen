@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # Configuration
 MAX_IMAGE_SIZE = 1024
 DEFAULT_SIZE = 512
+MAX_PAYLOAD_SIZE = 10 * 1024  # 10KB max request body
 
 class RawGenHandler(http.server.SimpleHTTPRequestHandler):
     """Main request handler with clean separation of concerns"""
@@ -92,6 +93,10 @@ class RawGenHandler(http.server.SimpleHTTPRequestHandler):
             content_length = int(self.headers.get('Content-Length', 0))
             if content_length == 0:
                 return self.send_json_response({'success': False, 'error': 'No data provided'}, 400)
+            
+            if content_length > MAX_PAYLOAD_SIZE:
+                logger.warning(f'Payload too large: {content_length} bytes')
+                return self.send_json_response({'success': False, 'error': 'Request too large'}, 413)
             
             post_data = self.rfile.read(content_length)
             data = json.loads(post_data.decode('utf-8'))
