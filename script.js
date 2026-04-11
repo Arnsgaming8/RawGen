@@ -135,6 +135,7 @@ class AIImageGenerator {
     preloadImage(url) {
         return new Promise((resolve, reject) => {
             const img = new Image();
+            img.crossOrigin = 'anonymous';
             img.onload = () => resolve(img);
             img.onerror = () => reject(new Error('Failed to load image'));
             img.src = url;
@@ -145,7 +146,7 @@ class AIImageGenerator {
         const { imageContainer, downloadSection, prompt } = this.elements;
         
         imageContainer.innerHTML = `
-            <img src="${imageUrl}" alt="Generated AI Image" class="generated-image" 
+            <img src="${imageUrl}" alt="Generated AI Image" class="generated-image" crossorigin="anonymous"
                 style="max-width: 100%; max-height: 500px; object-fit: contain;">
         `;
         downloadSection.classList.remove('hidden');
@@ -201,7 +202,7 @@ class AIImageGenerator {
         
         newContainer.innerHTML = this.state.generatedImages.map((img, index) => `
             <div class="gallery-item" data-index="${index}">
-                <img src="${img.url}" alt="${img.prompt.substring(0, 50)}..." loading="lazy">
+                <img src="${img.url}" alt="${img.prompt.substring(0, 50)}..." loading="lazy" crossorigin="anonymous">
                 <div class="gallery-overlay">
                     <p class="gallery-prompt">${img.prompt.substring(0, 60)}${img.prompt.length > 60 ? '...' : ''}</p>
                     <div class="gallery-overlay-buttons">
@@ -237,7 +238,7 @@ class AIImageGenerator {
         if (img) {
             const { imageContainer, downloadSection, prompt } = this.elements;
             this.state.currentImageUrl = img.url;
-            imageContainer.innerHTML = `<img src="${img.url}" alt="Generated AI Image" class="generated-image">`;
+            imageContainer.innerHTML = `<img src="${img.url}" alt="Generated AI Image" class="generated-image" crossorigin="anonymous">`;
             downloadSection.classList.remove('hidden');
             prompt.value = img.prompt;
         }
