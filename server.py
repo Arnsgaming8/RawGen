@@ -121,59 +121,56 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
             if not prompt:
                 return {'success': False, 'error': 'No prompt provided'}
             
-            # Build Pollinations URL with random seed for unique images
             encoded_prompt = urllib.parse.quote(prompt)
             seed = random.randint(1, 1000000)
             
-            # Add negative prompt if provided
-            image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={seed}&nologo=true&model=flux"
-            if negative:
-                encoded_negative = urllib.parse.quote(negative)
-                image_url += f"&negative={encoded_negative}"
+            # Try with flux model first, fallback to turbo
+            models = ['flux', 'turbo']
             
-            print(f"Generating image via Pollinations: {prompt[:50]}...")
-            print(f"URL: {image_url[:100]}...")
+            for model in models:
+                print(f"Trying model: {model}")
+                image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={seed}&nologo=true&model={model}"
+                if negative:
+                    encoded_negative = urllib.parse.quote(negative)
+                    image_url += f"&negative={encoded_negative}"
+                
+                print(f"Generating: {prompt[:50]}...")
+                
+                # Try up to 2 times per model with increasing timeouts
+                for attempt in range(2):
+                    try:
+                        print(f"Attempt {attempt + 1}/2 for {model}...")
+                        context = ssl._create_unverified_context()
+                        req = urllib.request.Request(
+                            image_url,
+                            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+                        )
+                        
+                        timeout = 45 + (attempt * 30)
+                        
+                        with urllib.request.urlopen(req, context=context, timeout=timeout) as response:
+                            if response.status == 200:
+                                image_data = response.read()
+                                image_b64 = base64.b64encode(image_data).decode()
+                                print(f"Success with {model}! Generated {len(image_data)} bytes")
+                                return {
+                                    'success': True,
+                                    'imageUrl': f'data:image/png;base64,{image_b64}'
+                                }
+                            else:
+                                print(f"HTTP {response.status} for {model}")
+                                
+                    except urllib.error.URLError as e:
+                        print(f"Network error with {model}: {e}")
+                    except Exception as e:
+                        print(f"Error with {model}: {e}")
             
-            # Try up to 3 times with increasing timeouts
-            for attempt in range(3):
-                try:
-                    print(f"Attempt {attempt + 1}/3...")
-                    context = ssl._create_unverified_context()
-                    req = urllib.request.Request(
-                        image_url,
-                        headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-                    )
-                    
-                    # Increase timeout with each attempt
-                    timeout = 30 + (attempt * 30)
-                    
-                    with urllib.request.urlopen(req, context=context, timeout=timeout) as response:
-                        if response.status == 200:
-                            image_data = response.read()
-                            image_b64 = base64.b64encode(image_data).decode()
-                            print(f"Success! Generated {len(image_data)} bytes")
-                            
-                            return {
-                                'success': True,
-                                'imageUrl': f'data:image/png;base64,{image_b64}'
-                            }
-                        else:
-                            print(f"Error: HTTP {response.status}")
-                            if attempt == 2:  # Last attempt
-                                return {'success': False, 'error': f'HTTP {response.status}'}
-                            
-                except Exception as e:
-                    print(f"Error on attempt {attempt + 1}: {e}")
-                    if attempt == 2:  # Last attempt
-                        return {'success': False, 'error': str(e)}
-                    continue
-            
-            return {'success': False, 'error': 'All attempts failed'}
+            return {'success': False, 'error': 'Service temporarily unavailable. Please try again.'}
         except Exception as e:
-            print(f"CRITICAL ERROR in handle_pollinations: {e}")
+            print(f"CRITICAL ERROR: {e}")
             import traceback
             traceback.print_exc()
-            return {'success': False, 'error': f'Server error: {str(e)}'}
+            return {'success': False, 'error': 'Service error. Please try again.'}
 
     def do_OPTIONS(self):
         self.send_response(200)
