@@ -11,7 +11,7 @@ import random
 
 class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
-        if self.path == '/':
+        if self.path == '/' or self.path == '/index.html':
             self.serve_file('index.html')
         elif self.path == '/health':
             self.send_health_check()
