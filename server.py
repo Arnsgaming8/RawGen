@@ -114,8 +114,8 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
         try:
             prompt = data.get('prompt', '')
             negative = data.get('negative', '')
-            width = min(data.get('width', 512), 768)
-            height = min(data.get('height', 512), 768)
+            width = min(data.get('width', 512), 1024)
+            height = min(data.get('height', 512), 1024)
             
             if not prompt:
                 return {'success': False, 'error': 'No prompt provided'}
@@ -123,40 +123,15 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
             encoded_prompt = urllib.parse.quote(prompt)
             seed = random.randint(1, 1000000)
             
+            # Return direct URL - client loads image from Pollinations directly
             image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={seed}&nologo=true"
             if negative:
                 encoded_negative = urllib.parse.quote(negative)
                 image_url += f"&negative={encoded_negative}"
             
-            print(f"Generating: {prompt[:50]}...")
+            print(f"Returning URL: {prompt[:50]}...")
+            return {'success': True, 'imageUrl': image_url}
             
-            for attempt in range(2):
-                try:
-                    print(f"Attempt {attempt + 1}/2...")
-                    context = ssl._create_unverified_context()
-                    req = urllib.request.Request(
-                        image_url,
-                        headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-                    )
-                    
-                    with urllib.request.urlopen(req, context=context) as response:
-                        if response.status == 200:
-                            image_data = response.read()
-                            image_b64 = base64.b64encode(image_data).decode()
-                            print(f"Success! Generated {len(image_data)} bytes")
-                            return {
-                                'success': True,
-                                'imageUrl': f'data:image/png;base64,{image_b64}'
-                            }
-                        else:
-                            print(f"HTTP {response.status}")
-                            
-                except urllib.error.URLError as e:
-                    print(f"Network error: {e}")
-                except Exception as e:
-                    print(f"Error: {e}")
-            
-            return {'success': False, 'error': 'Service temporarily unavailable. Please try again.'}
         except Exception as e:
             print(f"CRITICAL ERROR: {e}")
             import traceback
