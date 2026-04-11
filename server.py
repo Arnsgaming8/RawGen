@@ -114,8 +114,8 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
         try:
             prompt = data.get('prompt', '')
             negative = data.get('negative', '')
-            width = data.get('width', 512)
-            height = data.get('height', 512)
+            width = min(data.get('width', 512), 768)
+            height = min(data.get('height', 512), 768)
             
             # Validate prompt
             if not prompt:
@@ -126,7 +126,7 @@ class APIProxyHandler(http.server.SimpleHTTPRequestHandler):
             seed = random.randint(1, 1000000)
             
             # Add negative prompt if provided
-            image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={seed}&nologo=true"
+            image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={seed}&nologo=true&model=flux"
             if negative:
                 encoded_negative = urllib.parse.quote(negative)
                 image_url += f"&negative={encoded_negative}"
